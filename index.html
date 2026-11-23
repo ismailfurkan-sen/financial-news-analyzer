@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title id="pageTitle">Financial Sentiment Analysis - Thesis Dashboard</title>
+    <!-- Chart.js Kütüphanesi -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #121212; color: #ffffff; text-align: center; padding: 30px; }
+        .container { max-width: 900px; margin: auto; background: #1e1e1e; padding: 30px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        h1 { color: #4e73df; }
+        .info { margin: 15px 0; font-size: 16px; color: #b1b1b1; }
+        .search-box { margin-bottom: 20px; }
+        input { padding: 8px; width: 200px; border-radius: 5px; border: 1px solid #444; background: #2b2b2b; color: #fff; }
+        button { padding: 8px 15px; background: #4e73df; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #3b5cbd; }
+        
+        /* Otomatik Risk Alarm Kutusu Stili */
+        #riskAlertBox {
+            display: none;
+            padding: 12px;
+            margin: 15px 0;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 15px;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+
+        canvas { background: #2b2b2b; padding: 15px; border-radius: 8px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 id="mainHeading">Finansal Duygu Analizi & Trend Paneli</h1>
+        <p class="info">Zaman Serisi, Sentiment Momentum ve Trend Yönü Görselleştirmesi</p>
+        
+        <!-- Arama Kutusu -->
+        <div class="search-box">
+            <input type="text" id="queryInput" placeholder="Hisse/Varlık (Örn: ASELS)">
+            <button onclick="searchStock()">Sorgula</button>
+        </div>
+
+        <!-- Dinamik Risk Alarm Alanı -->
+        <div id="riskAlertBox"></div>
+
+        <canvas id="sentimentChart"></canvas>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const stockQuery = (urlParams.get('query') || 'THYAO').toUpperCase();
+        
+        document.getElementById('queryInput').value = stockQuery;
+        document.getElementById('mainHeading').innerText = stockQuery + " - Finansal Duygu Analizi & Trend Paneli";
+        document.getElementById('pageTitle').innerText = stockQuery + " | Sentiment Dashboard";
+
+        // 1. Trend Grafiği Verilerini Çekme
+        fetch('/trend?query=' + stockQuery)
+          .then(response => response.json())
+          .then(data => {
+              const points = data.historical_data_points;
+              const labels = points.map(p => p.timestamp);
+              const scores = points.map(p => p.score);
+              
+              const ctx = document.getElementById('sentimentChart').getContext('2d');
+              new Chart(ctx, {
+                  type: 'line',
+                  data: {
+                      labels: labels,
+                      datasets: [{
+                          label: stockQuery + ' Duygu Skoru (Sentiment Momentum)',
+                          data: scores,
+                          borderColor: '#4e73df',
+                          backgroundColor: 'rgba(78, 115, 223, 0.1)',
+                          borderWidth: 3,
+                          fill: true,
+                          tension: 0.2
+                      }]
+                  },
+                  options: {
+                      responsive: true,
+                      scales: {
+                          y: { min: -1.0, max: 1.0, grid: { color: '#444' } },
+                          x: { grid: { color: '#444' } }
+                      }
+                  }
+              });
+          })
+          .catch(error => console.error('Trend veri çekme hatası:', error));
+
+        // 2. Anlık Analiz ve Otomatik Risk Alarmını Çekme
+        fetch('/analyze?api_key=ded71dfa981e6683e2be636f721768df65642c94413448337be6acc25143c001&query=' + encodeURIComponent(stockQuery))
+          .then(response => response.json())
+          .then(data => {
+              const alertBox = document.getElementById("riskAlertBox");
+              
+              if (data.risk_alert) {
+                  alertBox.style.display = "block";
+                  alertBox.innerText = data.risk_alert;
+
+                  // Alarm türüne göre dinamik renk ve tema yönetimi
+                  if (data.risk_alert.includes("KIRMIZI ALARM")) {
+                      alertBox.style.backgroundColor = "rgba(217, 83, 79, 0.2)";
+                      alertBox.style.color = "#ff6b6b";
+                      alertBox.style.border = "1px solid #d9534f";
+                  } else if (data.risk_alert.includes("SARI ALARM")) {
+                      alertBox.style.backgroundColor = "rgba(240, 173, 78, 0.2)";
+                      alertBox.style.color = "#f0ad4e";
+                      alertBox.style.border = "1px solid #f0ad4e";
+                  } else if (data.risk_alert.includes("YEŞİL ALARM")) {
+                      alertBox.style.backgroundColor = "rgba(92, 184, 92, 0.2)";
+                      alertBox.style.color = "#5cb85c";
+                      alertBox.style.border = "1px solid #5cb85c";
+                  }
+              } else {
+                  alertBox.style.display = "none";
+              }
+          })
+          .catch(error => console.error('Anlık analiz/alarm veri çekme hatası:', error));
+
+        function searchStock() {
+            const val = document.getElementById('queryInput').value.trim();
+            if(val) {
+                window.location.href = '/?query=' + encodeURIComponent(val);
+            }
+        }
+    </script>
+</body>
+</html>
